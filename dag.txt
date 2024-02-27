@@ -1,0 +1,38 @@
+from airflow import models
+from airflow.providers.google.cloud.operators.bigquery import BigQueryToGCSOperator
+from airflow.utils.dates import days_ago
+
+# Define your DAG
+with models.DAG(
+    "my_bigquery_to_gcs_dag_dynamic",
+    schedule_interval=None,  # Set your desired schedule interval
+    start_date=days_ago(1),  # Set the start date
+    catchup=False,  # Disable backfilling
+) as dag:
+    # List of tables to export (add more as needed)
+    table_list = ["ABC", "DEF", "GHI"]  # Replace with your actual table names
+
+    # Loop through each table and export data to GCS
+    for table_name in table_list:
+        query = f"""
+            SELECT *
+            FROM `your_project.your_dataset.{table_name}`
+        """
+
+        # Export the query results to GCS files with double-quote delimiter
+        export_task = BigQueryToGCSOperator(
+            task_id=f"export_{table_name.lower()}_to_gcs",
+            source_project_dataset_table=query,
+            destination_cloud_storage_uris=[f"gs://your-gcs-bucket/output_{table_name.lower()}.txt"],
+            field_delimiter='","',  # Use double-quote as delimiter
+            print_header=True,  # Include header in the output file
+            export_format="CSV",  # Export as CSV
+        )
+
+        # You can add more tasks here if needed (e.g., sending notifications, etc.)
+
+# Set task dependencies (if any)
+# For example, you can set export_task_abc >> another_task
+
+# Note: Replace placeholders (e.g., 'your_project', 'your_dataset', 'your-gcs-bucket')
+# with your actual project, dataset, and GCS bucket names.
