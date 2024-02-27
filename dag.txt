@@ -1,64 +1,42 @@
-from airflow import DAG
-from airflow.providers.google.cloud.operators.bigquery import BigQueryGetDataOperator
-from airflow.providers.google.cloud.operators.gcs import GCSToLocalFilesystemOperator
-from airflow.providers.google.cloud.operators.gcs import GoogleCloudStorageCreateBucketOperator
-from airflow.providers.google.cloud.operators.gcs import GoogleCloudStorageUploadOperator
-from datetime import datetime
+from airflow import models
+from google.cloud import bigquery
+from google.cloud import storage
+from airflow.utils.dates import days_ago
 
-# Define your project ID, target dataset, and GCS bucket details
-project_id = os.environ["GCP_PROJECT"]
-target_dataset = "<your-target-dataset>"
-gcs_bucket_name = "<your-gcs-bucket-name>"
+# Define your DAG
+with models.DAG(
+    "my_bigquery_to_gcs_dag_dynamic",
+    schedule_interval=None,  # Set your desired schedule interval
+    start_date=days_ago(1),  # Set the start date
+    catchup=False,  # Disable backfilling
+) as dag:
+    # Initialize GCS client
+    gcs_client = storage.Client()
 
-# List of source tables
-table_list = ["table1", "table2"]  # Add more tables as needed
+    # List of tables to export (add more as needed)
+    table_list = ["ABC", "DEF", "GHI"]  # Replace with your actual table names
 
-# Create the DAG
-dag = DAG(
-    "fetch_and_export_bigquery_data",
-    schedule_interval="0 0 * * *",  # Daily execution
-    start_date=datetime(2024, 2, 27),
-    catchup=False,
-)
+    for table_name in table_list:
+        # Construct BigQuery query
+        bq_client = bigquery.Client()
+        dataset_id = "your_dataset"  # Replace with your actual dataset ID
+        project_id = "your_project"  # Replace with your actual project ID
+        table_ref = bq_client.dataset(dataset_id).table(table_name)
+        query_job = bq_client.query(f"SELECT * FROM `{table_ref}`")
+        rows = query_job.result()
 
-# Fetch data from BigQuery tables
-for source_table in table_list:
-    fetch_data_op = BigQueryGetDataOperator(
-        task_id=f"fetch_{source_table}",
-        dataset_id=target_dataset,
-        table_id=source_table,
-        max_results=1000,  # Adjust as needed
-        dag=dag,
-    )
+        # Export data to GCS
+        bucket_name = "your-gcs-bucket"  # Replace with your actual GCS bucket name
+        blob_name = f"output_{table_name.lower()}.txt"
+        bucket = gcs_client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
 
-    # Generate output file in text format with double quotes
-    output_file_path = f"/tmp/{source_table}.txt"
-    with open(output_file_path, "w") as output_file:
-        for row in fetch_data_op.output:
-            output_file.write(f'"{row[0]}", "{row[1]}", ...')  # Customize as per your schema
+        # Write query results to GCS file
+        with blob.open("w") as file:
+            for row in rows:
+                file.write(",".join(map(str, row.values())) + "\n")
 
-    # Upload the output file to GCS
-    upload_to_gcs_op = GoogleCloudStorageUploadOperator(
-        task_id=f"upload_to_gcs_{source_table}",
-        bucket_name=gcs_bucket_name,
-        object_name=f"{source_table}/{source_table}.txt",
-        filename=output_file_path,
-        dag=dag,
-    )
+        # You can add more tasks here if needed (e.g., sending notifications, etc.)
 
-    # Set up dependencies
-    fetch_data_op >> upload_to_gcs_op
-
-# Create the GCS bucket if it doesn't exist
-create_bucket_op = GoogleCloudStorageCreateBucketOperator(
-    task_id="create_gcs_bucket",
-    bucket_name=gcs_bucket_name,
-    storage_class="STANDARD",
-    location="us-central1",  # Change to your desired location
-    dag=dag,
-)
-
-# Set up dependencies
-create_bucket_op >> fetch_data_op
-
-# Add more tasks or customize as per your requirements
+# Set task dependencies (if any)
+# For example, you can set export_task_abc >> another_task
