@@ -1,0 +1,49 @@
+# ping_dag.py
+
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from datetime import datetime
+
+def ping_host(hostname):
+    try:
+        import subprocess
+        # Run the ping command
+        result = subprocess.run(["ping", "-c", "1", hostname], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            return f"{hostname} is reachable."
+        else:
+            return f"{hostname} is not reachable."
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+default_args = {
+    'owner': 'composer',
+    'start_date': datetime(2024, 4, 10),
+    'retries': 1,
+}
+
+dag = DAG(
+    'ping_task_dag',
+    default_args=default_args,
+    schedule_interval=None,  # Set your desired schedule interval
+    catchup=False,
+)
+
+# Set the hostname to ping
+hostname = "google.com"
+
+# Define the PythonOperator task
+ping_task = PythonOperator(
+    task_id='ping_task',
+    python_callable=ping_host,
+    op_args=[hostname],
+    dag=dag,
+)
+
+# Set task dependencies (if needed)
+# Example: ping_task >> other_task
+
+# You can add more tasks or customize the DAG as per your requirements.
+
+if __name__ == "__main__":
+    dag.cli()
