@@ -1,0 +1,71 @@
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
+from datetime import datetime
+import ldap
+
+default_args = {
+    'owner': 'airflow',
+    'start_date': datetime(2024, 6, 19),
+}
+
+def get_ldap_details(**context):
+    # Assuming `employee_ids` is passed from BigQuery Operator to XCom.
+    employee_ids = context['task_instance'].xcom_pull(task_ids='get_employee_ids_from_bq')
+    # Code to connect to LDAP and retrieve details for each employee ID.
+    # ...
+
+dag = DAG('ldap_data_check', default_args=default_args, schedule_interval=None)
+
+get_employee_ids_from_bq = BigQueryOperator(
+    task_id='get_employee_ids_from_bq',
+    sql='SELECT employee_id FROM `your_dataset.your_table`',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+ldap_details = PythonOperator(
+    task_id='get_ldap_details',
+    python_callable=get_ldap_details,
+    provide_context=True,
+    dag=dag
+)
+
+get_employee_ids_from_bq >> ldap_details
+
+
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
+from datetime import datetime
+import ldap
+
+default_args = {
+    'owner': 'airflow',
+    'start_date': datetime(2024, 6, 19),
+}
+
+def get_ldap_details(**context):
+    # Assuming `employee_ids` is passed from BigQuery Operator to XCom.
+    employee_ids = context['task_instance'].xcom_pull(task_ids='get_employee_ids_from_bq')
+    # Code to connect to LDAP and retrieve details for each employee ID.
+    # ...
+
+dag = DAG('ldap_data_check', default_args=default_args, schedule_interval=None)
+
+get_employee_ids_from_bq = BigQueryOperator(
+    task_id='get_employee_ids_from_bq',
+    sql='SELECT employee_id FROM `your_dataset.your_table`',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+ldap_details = PythonOperator(
+    task_id='get_ldap_details',
+    python_callable=get_ldap_details,
+    provide_context=True,
+    dag=dag
+)
+
+get_employee_ids_from_bq >> ldap_details
+
