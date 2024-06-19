@@ -33,39 +33,32 @@ ldap_details = PythonOperator(
 
 get_employee_ids_from_bq >> ldap_details
 
-
-from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
-from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from datetime import datetime
 import ldap
 
-default_args = {
-    'owner': 'airflow',
-    'start_date': datetime(2024, 6, 19),
-}
+def get_ldap_details(employee_id):
+    # LDAP server details
+    ldap_server = "ldap://your_ldap_server"
+    user_dn = "uid=user,cn=users,dc=example,dc=com"
+    password = "your_password"
+    
+    # Connect to LDAP server
+    conn = ldap.initialize(ldap_server)
+    conn.simple_bind_s(user_dn, password)
+    
+    # Search for the employee details
+    search_filter = f"(employeeNumber={employee_id})"
+    search_base = "dc=example,dc=com"
+    
+    try:
+        results = conn.search_s(search_base, ldap.SCOPE_SUBTREE, search_filter)
+        # Assuming the first result is the desired one
+        employee_details = results[0][1]
+        return employee_details
+    except ldap.LDAPError as e:
+        print(e)
+        return None
+    finally:
+        conn.unbind_s()
 
-def get_ldap_details(**context):
-    # Assuming `employee_ids` is passed from BigQuery Operator to XCom.
-    employee_ids = context['task_instance'].xcom_pull(task_ids='get_employee_ids_from_bq')
-    # Code to connect to LDAP and retrieve details for each employee ID.
-    # ...
 
-dag = DAG('ldap_data_check', default_args=default_args, schedule_interval=None)
-
-get_employee_ids_from_bq = BigQueryOperator(
-    task_id='get_employee_ids_from_bq',
-    sql='SELECT employee_id FROM `your_dataset.your_table`',
-    use_legacy_sql=False,
-    dag=dag
-)
-
-ldap_details = PythonOperator(
-    task_id='get_ldap_details',
-    python_callable=get_ldap_details,
-    provide_context=True,
-    dag=dag
-)
-
-get_employee_ids_from_bq >> ldap_details
 
