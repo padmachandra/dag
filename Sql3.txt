@@ -1,0 +1,70 @@
+WITH Group_Concat AS (
+    SELECT
+        CONCAT(a, b, c) AS abc_concat,
+        a, b, c
+    FROM
+        group_account_table
+),
+Latest_Transaction AS (
+    SELECT
+        abc_concat,
+        MAX(timestamp_col) AS latest_timestamp
+    FROM
+        log_table lt
+    JOIN
+        Group_Concat gc
+    ON
+        lt.a = gc.a AND lt.b = gc.b AND lt.c = gc.c
+    GROUP BY
+        abc_concat
+),
+Peak_Outstanding AS (
+    SELECT
+        lt.abc_concat,
+        lt.debit_amt,
+        lt.total_balance,
+        lt.debit_amt + lt.total_balance AS peak_outstanding
+    FROM
+        log_table lt
+    JOIN
+        Latest_Transaction lt_latest
+    ON
+        lt.abc_concat = lt_latest.abc_concat
+    WHERE
+        lt.timestamp_col = lt_latest.latest_timestamp
+),
+Address_Details AS (
+    SELECT
+        gc.abc_concat,
+        lt.limitamount,
+        po.peak_outstanding,
+        sa.address_ind,
+        se.acct,
+        ad.address_details
+    FROM
+        Group_Concat gc
+    JOIN
+        limit_table lt
+    ON
+        gc.a = lt.a AND gc.b = lt.b AND gc.c = lt.c
+    JOIN
+        Peak_Outstanding po
+    ON
+        gc.abc_concat = po.abc_concat
+    JOIN
+        ssaddrp sa
+    ON
+        gc.a = sa.a AND gc.b = sa.b AND gc.c = sa.c
+    JOIN
+        sseanfp se
+    ON
+        gc.a = se.a AND gc.b = se.b AND gc.c = se.c
+    JOIN
+        address_table ad
+    ON
+        sa.address_ind = ad.address_ind
+)
+SELECT
+    *
+FROM
+    Address_Details;
