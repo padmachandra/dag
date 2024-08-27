@@ -1,0 +1,51 @@
+WITH LastDebitTransaction AS (
+  SELECT
+    l.group_account,
+    DATE(l.transaction_date_time) AS transaction_date,
+    l.limit_amount AS last_limit_amount,
+    l.total_avl_balance AS last_total_avl_balance,
+    l.debit_tran_amt AS last_debit_tran_amt,
+    ROW_NUMBER() OVER (
+      PARTITION BY l.group_account, DATE(l.transaction_date_time)
+      ORDER BY l.transaction_date_time DESC
+    ) AS rn
+  FROM
+    `your_project.your_dataset.log_table` l
+  WHERE
+    l.debit_tran_amt < 0
+),
+
+PeakOutstanding AS (
+  SELECT
+    group_account,
+    transaction_date,
+    last_limit_amount,
+    last_total_avl_balance,
+    last_debit_tran_amt,
+    (last_total_avl_balance + last_debit_tran_amt) AS peak_outstanding
+  FROM
+    LastDebitTransaction
+  WHERE
+    rn = 1
+)
+
+SELECT
+  po.group_account,
+  po.transaction_date,
+  po.last_limit_amount AS limit_amount,
+  po.last_total_avl_balance AS total_avl_balance,
+  po.last_debit_tran_amt AS debit_tran_amt,
+  po.peak_outstanding,
+  a.address
+FROM
+  PeakOutstanding po
+JOIN
+  `your_project.your_dataset.group_account_table` ga
+ON
+  po.group_account = ga.group_account
+JOIN
+  `your_project.your_dataset.address_table` a
+ON
+  ga.group_account = a.group_account
+ORDER BY
+  po.transaction_date, po.group_account;
