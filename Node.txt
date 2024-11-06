@@ -1,0 +1,35 @@
+const { CloudSQLConnector } = require('@google-cloud/cloud-sql-connector');
+const { Client } = require('pg');
+
+// Replace with your Cloud SQL instance details
+const INSTANCE_CONNECTION_NAME = 'your-project:region:instance-id';
+const DB_USER = 'your-database-user';
+const DB_PASS = 'your-database-password';
+const DB_NAME = 'your-database-name';
+
+// Initialize the Cloud SQL connector
+const connector = new CloudSQLConnector();
+
+async function createPgClient() {
+  // Use the connector to get an SSL connection to Cloud SQL
+  const client = new Client({
+    user: DB_USER,
+    password: DB_PASS,
+    database: DB_NAME,
+    // Generate a secure connection using Cloud SQL connector
+    stream: await connector.connect(INSTANCE_CONNECTION_NAME, 'pg'),
+  });
+
+  await client.connect();
+  return client;
+}
+
+// Sample query function
+async function runQuery() {
+  const client = await createPgClient();
+  const result = await client.query('SELECT * FROM your_table LIMIT 10');
+  console.log(result.rows);
+  await client.end();
+}
+
+runQuery().catch(console.error);
