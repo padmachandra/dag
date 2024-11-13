@@ -1,0 +1,39 @@
+from google.cloud.sql.connector import Connector
+import psycopg2
+import os
+
+# Set the path to your service account key file if needed
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/path/to/your/service-account-key.json"
+
+# Initialize the Cloud SQL Python Connector
+connector = Connector()
+
+# Replace these with your Cloud SQL details
+INSTANCE_CONNECTION_NAME = "your-project-id:your-region:your-instance-id"
+DB_USER = "your-db-user"
+DB_NAME = "your-db-name"
+
+# Function to create a psycopg2 connection using the connector
+def get_connection():
+    conn = connector.connect(
+        INSTANCE_CONNECTION_NAME,
+        "psycopg2",
+        user=DB_USER,
+        dbname=DB_NAME,
+        enable_iam_auth=True  # Use IAM authentication
+    )
+    return conn
+
+# Test the connection
+try:
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT 'Hello, Cloud SQL with psycopg2!'")
+            result = cursor.fetchone()
+            print(result)
+    print("Connection successful")
+except Exception as e:
+    print("Connection failed:", e)
+
+# Close the connector when done
+connector.close()
