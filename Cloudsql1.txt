@@ -1,0 +1,32 @@
+const { Connector } = require('@google-cloud/cloud-sql-connector');
+const { Pool } = require('pg');
+const path = require('path');
+
+const keyFilePath = path.join(__dirname, 'path/to/your-service-account-key.json');
+
+const connector = new Connector({
+  keyFilename: keyFilePath,
+});
+
+const instanceConnectionName = '<PROJECT_ID>:<REGION>:<INSTANCE_NAME>';
+
+const clientOpts = await connector.getOptions({
+  instanceConnectionName,
+  ipType: 'PUBLIC', // Or 'PRIVATE'
+});
+
+const pool = new Pool({
+  ...clientOpts,
+  user: '<DB_USER>', // Database user
+  database: '<DB_NAME>', // Database name
+  // No password is needed
+});
+
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('Error connecting to the database:', err.stack);
+    return;
+  }
+  console.log('Successfully connected to the database!');
+  release();
+});
