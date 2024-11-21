@@ -1,0 +1,22 @@
+const { Pool } = require('pg');
+
+// Replace with your VM's internal IP and Cloud SQL details
+const pool = new Pool({
+  host: '<VM_INTERNAL_IP>', // Internal IP of the VM
+  user: '<DB_USER>', // Database user
+  database: '<DB_NAME>', // Database name
+  port: 5432, // The port where Cloud SQL Proxy is running
+  ssl: false, // SSL is not required when using the proxy
+});
+
+async function connectToDatabase() {
+  try {
+    const client = await pool.connect();
+    console.log('Successfully connected to the database!');
+    client.release(); // Release the client back to the pool
+  } catch (err) {
+    console.error('Error connecting to the database:', err.stack);
+  }
+}
+
+connectToDatabase();
