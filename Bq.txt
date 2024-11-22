@@ -1,0 +1,28 @@
+const { BigQuery } = require('@google-cloud/bigquery');
+
+// Initialize BigQuery Client
+const bigquery = new BigQuery();
+
+async function fetchFromBigQuery() {
+  try {
+    console.log('Querying BigQuery...');
+
+    // SQL Query
+    const query = `
+      SELECT id, name, email
+      FROM \`your_project_id.your_dataset.users\`
+      LIMIT 10
+    `;
+
+    // Run Query
+    const [rows] = await bigquery.query(query);
+
+    console.log('Fetched rows:');
+    console.table(rows);
+  } catch (err) {
+    console.error('Error querying BigQuery:', err);
+  }
+}
+
+// Run the function
+fetchFromBigQuery();
