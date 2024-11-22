@@ -1,0 +1,54 @@
+const cluster = require('cluster');
+const os = require('os');
+const { Pool } = require('pg');
+const { BigQuery } = require('@google-cloud/bigquery');
+
+if (cluster.isMaster) {
+  const numWorkers = os.cpus().length;
+
+  console.log(`Master process ${process.pid} is running`);
+  console.log(`Forking ${numWorkers} workers...`);
+
+  for (let i = 0; i < numWorkers; i++) {
+    cluster.fork();
+  }
+
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`Worker ${worker.process.pid} exited`);
+  });
+} else {
+  console.log(`Worker ${process.pid} started`);
+
+  const pool = new Pool({
+    user: 'your_user',
+    host: 'your_host',
+    database: 'your_database',
+    password: 'your_password',
+    port: 5432,
+  });
+
+  const bigquery = new BigQuery();
+
+  async function fetchData() {
+    try {
+      console.time('Worker Initialization');
+
+      console.time('Connect to Cloud SQL');
+      const sqlData = await pool.query('SELECT * FROM your_table');
+      console.timeEnd('Connect to Cloud SQL');
+
+      console.time('Connect to BigQuery');
+      const [bigQueryData] = await bigquery.query('SELECT * FROM `your_project.your_dataset.your_table`');
+      console.timeEnd('Connect to BigQuery');
+
+      console.log(`Worker ${process.pid} fetched data`);
+      console.timeEnd('Worker Initialization');
+    } catch (err) {
+      console.error(`Worker ${process.pid} error:`, err);
+    } finally {
+      process.exit();
+    }
+  }
+
+  fetchData();
+}
