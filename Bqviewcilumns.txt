@@ -1,0 +1,107 @@
+import csv
+import re
+from google.cloud import bigquery
+
+client = bigquery.Client()
+
+visited_views = set()
+visited_udfs = set()
+output_rows = []
+
+def extract_identifiers(sql_text):
+    return re.findall(r"`([\w\-]+)\.([\w\-]+)\.([\w\-]+)`", sql_text or "")
+
+def get_view_definition(project, dataset, view_name):
+    query = f"""
+        SELECT view_definition
+        FROM `{project}.{dataset}.INFORMATION_SCHEMA.VIEWS`
+        WHERE table_name = '{view_name}'
+    """
+    result = client.query(query).result()
+    for row in result:
+        return row.view_definition
+    return None
+
+def get_udf_definition(project, dataset, function_name):
+    query = f"""
+        SELECT routine_definition
+        FROM `{project}.{dataset}.INFORMATION_SCHEMA.ROUTINES`
+        WHERE routine_name = '{function_name}'
+    """
+    result = client.query(query).result()
+    for row in result:
+        return row.routine_definition
+    return None
+
+def extract_column_expressions(view_sql):
+    columns = []
+    if not view_sql:
+        return columns
+    select_match = re.search(r"SELECT\s+(.*?)\s+FROM", view_sql, re.DOTALL | re.IGNORECASE)
+    if not select_match:
+        return columns
+    select_block = select_match.group(1)
+    lines = select_block.split(",")
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        match = re.match(r"(.*?)(?:\s+AS\s+|\s+as\s+)(\w+)$", line)
+        if match:
+            expr, alias = match.groups()
+            columns.append((alias.strip(), expr.strip()))
+        else:
+            columns.append((line, "Direct column"))
+    return columns
+
+def process_view(project, dataset, view_name):
+    fq_name = f"{project}.{dataset}.{view_name}"
+    if fq_name in visited_views:
+        return
+    visited_views.add(fq_name)
+
+    definition = get_view_definition(project, dataset, view_name)
+    if not definition:
+        output_rows.append(["View", fq_name, "", "⚠️ No view definition found"])
+        return
+
+    column_exprs = extract_column_expressions(definition)
+    if column_exprs:
+        for col_name, expr in column_exprs:
+            output_rows.append(["View", fq_name, col_name, expr])
+    else:
+        output_rows.append(["View", fq_name, "", definition.strip()])
+
+    for ref_project, ref_dataset, ref_name in extract_identifiers(definition):
+        if ref_name.lower().startswith("udf") or "function" in ref_name.lower():
+            process_udf(ref_project, ref_dataset, ref_name)
+        else:
+            process_view(ref_project, ref_dataset, ref_name)
+
+def process_udf(project, dataset, function_name):
+    fq_name = f"{project}.{dataset}.{function_name}"
+    if fq_name in visited_udfs:
+        return
+    visited_udfs.add(fq_name)
+
+    definition = get_udf_definition(project, dataset, function_name)
+    if not definition:
+        output_rows.append(["Function", fq_name, "", "⚠️ No function definition found"])
+        return
+
+    output_rows.append(["Function", fq_name, "", definition.strip()])
+
+def save_to_csv(filepath="view_function_analysis.csv"):
+    with open(filepath, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Object Type", "Object Name", "Output Column", "Calculation or Definition"])
+        writer.writerows(output_rows)
+
+# 🔁 Replace with your actual values
+TOP_PROJECT = "your-project-id"
+TOP_DATASET = "your_dataset"
+TOP_VIEW = "acct_image"
+
+process_view(TOP_PROJECT, TOP_DATASET, TOP_VIEW)
+save_to_csv("acct_image_analysis.csv")
+print("✅ Output saved to acct_image_analysis.csv")
