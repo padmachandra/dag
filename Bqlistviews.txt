@@ -1,0 +1,79 @@
+import csv
+import re
+from google.cloud import bigquery
+
+client = bigquery.Client()
+
+visited_views = set()
+visited_udfs = set()
+output_rows = []
+
+def extract_identifiers(sql_text):
+    return re.findall(r"`([\w\-]+)\.([\w\-]+)\.([\w\-]+)`", sql_text)
+
+def get_view_definition(project, dataset, view_name):
+    query = f"""
+        SELECT view_definition
+        FROM `{project}.{dataset}.INFORMATION_SCHEMA.VIEWS`
+        WHERE table_name = '{view_name}'
+    """
+    result = client.query(query).result()
+    for row in result:
+        return row.view_definition
+    return None
+
+def get_udf_definition(project, dataset, function_name):
+    query = f"""
+        SELECT routine_definition
+        FROM `{project}.{dataset}.INFORMATION_SCHEMA.ROUTINES`
+        WHERE routine_name = '{function_name}'
+    """
+    result = client.query(query).result()
+    for row in result:
+        return row.routine_definition
+    return None
+
+def process_view(project, dataset, view_name, depth=0):
+    fq_name = f"{project}.{dataset}.{view_name}"
+    if fq_name in visited_views:
+        return
+    visited_views.add(fq_name)
+
+    definition = get_view_definition(project, dataset, view_name)
+    if not definition:
+        definition = "⚠️  No definition found."
+
+    output_rows.append(["View", fq_name, definition.strip()])
+
+    for ref_project, ref_dataset, ref_name in extract_identifiers(definition or ""):
+        if ref_name.lower().startswith("udf") or "function" in ref_name.lower():
+            process_udf(ref_project, ref_dataset, ref_name, depth + 1)
+        else:
+            process_view(ref_project, ref_dataset, ref_name, depth + 1)
+
+def process_udf(project, dataset, function_name, depth=0):
+    fq_name = f"{project}.{dataset}.{function_name}"
+    if fq_name in visited_udfs:
+        return
+    visited_udfs.add(fq_name)
+
+    definition = get_udf_definition(project, dataset, function_name)
+    if not definition:
+        definition = "⚠️  No definition found."
+
+    output_rows.append(["Function", fq_name, definition.strip()])
+
+def save_to_csv(filepath="bq_lineage_output.csv"):
+    with open(filepath, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Object Type", "Full Name", "SQL Definition"])
+        writer.writerows(output_rows)
+
+# 🔁 Start from your top-level view
+TOP_PROJECT = "your-project-id"
+TOP_DATASET = "your_dataset"
+TOP_VIEW = "acct_image"
+
+process_view(TOP_PROJECT, TOP_DATASET, TOP_VIEW)
+save_to_csv("acct_image_lineage.csv")
+print("✅ Output saved to acct_image_lineage.csv")
