@@ -1,0 +1,17 @@
+Here’s a clean bullet-point style feedback you can use:
+
+Strong in Java and Spring Boot for backend development
+
+Good proficiency with React for frontend development
+
+Demonstrated full-stack capabilities (frontend + backend)
+
+Aware of deployment procedures using Docker and Kubernetes
+
+Has experience with a few AWS services and could explain them clearly
+
+Communicated technical concepts well during the discussion
+
+
+Do you also want me to make a “Strengths / Areas to Improve” style version (common in interview feedback forms)?
+
