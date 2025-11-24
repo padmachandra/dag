@@ -1,0 +1,132 @@
+import streamlit as st
+import subprocess
+import pandas as pd
+import time
+import platform
+
+# --- CONFIGURATION ---
+# Define servers and services (Internal Service Names)
+SERVERS = [
+    {"host": "127.0.0.1", "name": "Localhost", "services": ["Spooler"]},
+    {"host": "192.168.1.10", "name": "Web Server 01", "services": ["W3SVC", "aspnet_state"]},
+    {"host": "192.168.1.20", "name": "SQL Server 01", "services": ["MSSQLSERVER"]},
+    {"host": "google.com", "name": "External Check", "services": []}, # Ping only
+]
+
+def check_ping(host):
+    """Pings the host using system ping command."""
+    param = '-n' if platform.system().lower() == 'windows' else '-c'
+    try:
+        # Timeout is set to 1000ms (1 second) via -w 1000 in Windows
+        command = ['ping', param, '1', '-w', '1000', host]
+        return subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    except:
+        return False
+
+def check_service_remote(host, service_name):
+    """
+    Checks remote service status using Windows 'sc' command.
+    Note: Requires Admin rights and network access to the target.
+    """
+    if host in ["127.0.0.1", "localhost"]:
+        cmd = f'sc query "{service_name}"'
+    else:
+        cmd = f'sc \\\\{host} query "{service_name}"'
+        
+    try:
+        # Run sc query and look for "RUNNING" in output
+        result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+        return "RUNNING" in result.stdout
+    except:
+        return False
+
+# --- UI SETUP ---
+st.set_page_config(page_title="Infra Monitor", page_icon="🖥️", layout="wide")
+
+# Custom CSS for the cards
+st.markdown("""
+<style>
+    .metric-card {
+        background-color: #262730;
+        border: 1px solid #464b5c;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    .status-up { border-left: 5px solid #2ecc71; }
+    .status-down { border-left: 5px solid #e74c3c; }
+    .svc-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-right: 5px;
+        margin-top: 5px;
+        font-weight: bold;
+        color: black;
+    }
+    .badge-ok { background-color: #2ecc71; }
+    .badge-err { background-color: #e74c3c; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🖥️ Server Availability & Service Monitor")
+
+# Placeholder for the loop
+placeholder = st.empty()
+
+while True:
+    with placeholder.container():
+        # High Level Stats
+        up_count = 0
+        
+        # We collect data first to calculate stats
+        results = []
+        for s in SERVERS:
+            is_up = check_ping(s['host'])
+            svc_status = {}
+            if is_up:
+                up_count += 1
+                for svc in s['services']:
+                    svc_status[svc] = check_service_remote(s['host'], svc)
+            results.append({"config": s, "is_up": is_up, "services": svc_status})
+
+        # Display Top Stats
+        kpi1, kpi2 = st.columns(2)
+        kpi1.metric("Servers Online", f"{up_count} / {len(SERVERS)}")
+        kpi2.metric("Last Update", time.strftime("%H:%M:%S"))
+
+        st.markdown("---")
+
+        # Grid Layout
+        cols = st.columns(4)
+        for i, res in enumerate(results):
+            with cols[i % 4]:
+                server_name = res['config']['name']
+                host_ip = res['config']['host']
+                status_class = "status-up" if res['is_up'] else "status-down"
+                icon = "✅" if res['is_up'] else "❌"
+                
+                # Build Service HTML
+                svc_html = ""
+                if res['is_up']:
+                    if not res['services']:
+                        svc_html = "<small style='color:gray'>Ping Only</small>"
+                    for name, running in res['services'].items():
+                        bg = "badge-ok" if running else "badge-err"
+                        txt = "RUNNING" if running else "STOPPED"
+                        svc_html += f"<span class='svc-badge {bg}'>{name}</span>"
+                else:
+                    svc_html = "<small style='color:#e74c3c'>UNREACHABLE</small>"
+
+                st.markdown(f"""
+                <div class="metric-card {status_class}">
+                    <b>{icon} {server_name}</b><br>
+                    <small style='color:#9ca0ad'>{host_ip}</small><br>
+                    <div style='margin-top:8px'>{svc_html}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Refresh logic
+        time.sleep(60)
+        st.rerun()
