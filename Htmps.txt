@@ -1,0 +1,155 @@
+<#
+.SYNOPSIS
+    Monitors Windows Servers (Ping + Services) and generates a static HTML dashboard.
+.DESCRIPTION
+    Checks reachability and specific Windows Services (IIS, SQL, etc.).
+    Outputs to 'dashboard.html' on the Desktop.
+#>
+
+# --- 1. CONFIGURATION ---
+$OutputPath = "$HOME\Desktop\dashboard.html"
+$RefreshInterval = 60 # Seconds
+
+# Define your servers and the specific services to watch
+# Use Internal Service Names (e.g., 'W3SVC', 'MSSQLSERVER'), not Display Names.
+$ServerConfigs = @(
+    # Web Servers (IIS)
+    @{ Name="WEB-PROD-01"; Services="W3SVC" },
+    @{ Name="WEB-PROD-02"; Services="W3SVC,aspnet_state" },
+    
+    # DB Servers (SQL)
+    @{ Name="SQL-DB-01";   Services="MSSQLSERVER,SQLSERVERAGENT" },
+    
+    # App Servers (Custom Services)
+    @{ Name="APP-SRV-01";  Services="TermService,Spooler" },
+    
+    # Generic (Ping Only)
+    @{ Name="192.168.1.50"; Services="" } 
+)
+
+# --- 2. THE ENGINE ---
+Write-Host "Starting Monitor... Output: $OutputPath" -ForegroundColor Cyan
+
+while ($true) {
+    $TotalServers = $ServerConfigs.Count
+    $OnlineCount = 0
+    $CardsHTML = ""
+
+    foreach ($Item in $ServerConfigs) {
+        $Server = $Item.Name
+        $ServiceNames = $Item.Services -split "," | Where-Object { $_ -ne "" }
+        $ServiceRows = ""
+        $IsServerUp = $false
+        
+        Write-Host "Checking $Server..." -NoNewline
+
+        # A. PING CHECK
+        if (Test-Connection -ComputerName $Server -Count 1 -Quiet -ErrorAction SilentlyContinue) {
+            $IsServerUp = $true
+            $OnlineCount++
+            Write-Host " [UP]" -ForegroundColor Green -NoNewline
+            
+            # B. SERVICE CHECK (Only if Ping is successful)
+            if ($ServiceNames.Count -gt 0) {
+                foreach ($SvcName in $ServiceNames) {
+                    try {
+                        $Svc = Get-Service -ComputerName $Server -Name $SvcName -ErrorAction Stop
+                        if ($Svc.Status -eq "Running") {
+                            $Badge = "<span class='badge success'>✔ $($Svc.Status)</span>"
+                        } else {
+                            $Badge = "<span class='badge danger'>⚠️ $($Svc.Status)</span>"
+                        }
+                    } catch {
+                         $Badge = "<span class='badge warning'>❓ Unknown</span>"
+                    }
+                    $ServiceRows += "<div class='svc-row'><span>$SvcName</span> $Badge</div>"
+                }
+            } else {
+                $ServiceRows = "<div class='svc-row' style='justify-content:center'><i>Ping Only</i></div>"
+            }
+
+            $CardClass = "card up"
+            $Icon = "✅"
+            $StatusText = "ONLINE"
+        }
+        else {
+            Write-Host " [DOWN]" -ForegroundColor Red
+            $IsServerUp = $false
+            $CardClass = "card down"
+            $Icon = "❌"
+            $StatusText = "OFFLINE"
+            $ServiceRows = "<div class='svc-row center'><i>Unreachable</i></div>"
+        }
+        Write-Host "" 
+
+        # C. BUILD HTML CARD
+        $CardsHTML += @"
+        <div class='$CardClass'>
+            <div class='card-header'>
+                <div class='server-icon'>$Icon</div>
+                <div>
+                    <h3>$Server</h3>
+                    <small>$StatusText</small>
+                </div>
+            </div>
+            <div class='card-body'>
+                $ServiceRows
+            </div>
+        </div>
+"@
+    }
+
+    $Time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+    # --- 3. HTML GENERATION ---
+    $HTML = @"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="$RefreshInterval">
+    <title>Server Monitor</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; padding: 20px; }
+        .dashboard-header { text-align: center; margin-bottom: 40px; }
+        .dashboard-header h1 { margin: 0; font-weight: 300; letter-spacing: 1px; }
+        .meta { color: #94a3b8; font-size: 0.9rem; margin-top: 10px; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+        
+        .card { background: #1e293b; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); border-top: 4px solid #334155; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-3px); }
+        .card.up { border-top-color: #22c55e; }
+        .card.down { border-top-color: #ef4444; background: #450a0a; }
+
+        .card-header { display: flex; align-items: center; padding: 15px; background: rgba(255,255,255,0.05); }
+        .server-icon { font-size: 1.5rem; margin-right: 15px; }
+        h3 { margin: 0; font-size: 1.1rem; }
+        small { color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .card-body { padding: 10px 15px; font-size: 0.9rem; }
+        .svc-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #334155; }
+        .svc-row:last-child { border-bottom: none; }
+        
+        .badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; font-weight: 600; color: #0f172a; }
+        .success { background: #86efac; }
+        .danger { background: #fca5a5; }
+        .warning { background: #fde047; }
+        .center { justify-content: center; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <h1>Windows Infrastructure Monitor</h1>
+        <div class="meta">Online: $OnlineCount / $TotalServers &nbsp;|&nbsp; Last Scan: $Time</div>
+    </div>
+    <div class="grid">
+        $CardsHTML
+    </div>
+</body>
+</html>
+"@
+    
+    $HTML | Out-File -FilePath $OutputPath -Encoding utf8
+    Start-Sleep -Seconds $RefreshInterval
+}
