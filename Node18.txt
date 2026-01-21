@@ -1,0 +1,37 @@
+BUCKET=gs://<your-bucket-name>
+APP_DIR=/opt/my-app
+NODE_TAR=node-v18.19.0-linux-x64.tar.xz
+APP_PKG=my-app.tar.gz
+SERVICE_NAME=my-app
+
+gsutil cp ${BUCKET}/node/${NODE_TAR} /tmp/
+
+sudo mkdir -p /usr/local/nodejs
+sudo tar -xJf /tmp/${NODE_TAR} -C /usr/local/nodejs
+sudo ln -s /usr/local/nodejs/node-v18.19.0-linux-x64 /usr/local/nodejs/node18
+sudo chmod -R 755 /usr/local/nodejs
+
+/usr/local/nodejs/node18/bin/node -v
+/usr/local/nodejs/node18/bin/npm -v
+
+sudo mkdir -p ${APP_DIR}
+gsutil cp ${BUCKET}/app/${APP_PKG} /tmp/
+sudo tar -xzf /tmp/${APP_PKG} -C ${APP_DIR}
+
+gsutil cp ${BUCKET}/service/${SERVICE_NAME}.service /tmp/
+sudo cp /tmp/${SERVICE_NAME}.service /etc/systemd/system/${SERVICE_NAME}.service
+
+sudo vi /etc/systemd/system/${SERVICE_NAME}.service
+
+cd ${APP_DIR}
+sudo rm -rf node_modules package-lock.json
+sudo /usr/local/nodejs/node18/bin/npm install
+
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl enable ${SERVICE_NAME}
+sudo systemctl restart ${SERVICE_NAME}
+
+systemctl status ${SERVICE_NAME} -l
+journalctl -u ${SERVICE_NAME} -n 200 --no-pager
+journalctl -u ${SERVICE_NAME} -f
