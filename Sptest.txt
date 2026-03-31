@@ -1,0 +1,41 @@
+import requests
+
+tenant_id = "YOUR_TENANT_ID"
+client_id = "YOUR_CLIENT_ID"
+client_secret = "YOUR_CLIENT_SECRET"
+
+# Step 1: Get token
+token_resp = requests.post(
+    f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+    data={
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": "https://graph.microsoft.com/.default"
+    }
+)
+access_token = token_resp.json()["access_token"]
+headers = {"Authorization": f"Bearer {access_token}"}
+
+# Step 2: Get Site ID
+site_resp = requests.get(
+    "https://graph.microsoft.com/v1.0/sites/YOUR_ORG.sharepoint.com:/sites/YOUR_SITE_NAME",
+    headers=headers
+)
+site_id = site_resp.json()["id"]
+print("Site ID:", site_id)
+
+# Step 3: Get Drive ID
+drive_resp = requests.get(
+    f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive",
+    headers=headers
+)
+drive_id = drive_resp.json()["id"]
+
+# Step 4: Write a test file
+upload_resp = requests.put(
+    f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/test_file.txt:/content",
+    headers={**headers, "Content-Type": "text/plain"},
+    data=b"Test write using Sites.SelectedAll"
+)
+print("Upload status:", upload_resp.status_code)  # 200 or 201 = success
