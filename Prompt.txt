@@ -1,0 +1,49 @@
+# Demo: User Entitlements Viewer
+
+## Goal
+Full-stack app showing users and their entitlements.
+Mocks a DB2 database using static JSON files.
+
+## Tech Stack
+- Backend: Spring Boot 2.7, Java 8, Maven
+- Frontend: Angular 14+ 
+- No real DB connection — use JSON flat files as data source
+
+## What the UI Should Show
+- A page listing all users
+- Each user row expandable or linked to show their entitlements
+- Clean table layout — suitable for a management demo
+
+## API Expected
+GET /api/users          → list of all users with basic info
+GET /api/users/{id}/entitlements → entitlements for a user
+
+## Data Source
+Static JSON files under src/main/resources/data/
+- users.json
+- entitlements.json
+
+
+# DB2 Schema Reference
+
+## USERS Table
+| Column         | Type         | Description              |
+|----------------|--------------|--------------------------|
+| USER_ID        | VARCHAR(20)  | Primary key              |
+| FIRST_NAME     | VARCHAR(50)  |                          |
+| LAST_NAME      | VARCHAR(50)  |                          |
+| EMAIL          | VARCHAR(100) |                          |
+| DEPARTMENT     | VARCHAR(50)  |                          |
+| STATUS         | VARCHAR(10)  | ACTIVE / INACTIVE        |
+| CREATED_DATE   | DATE         |                          |
+
+## ENTITLEMENTS Table
+| Column         | Type         | Description              |
+|----------------|--------------|--------------------------|
+| ENTITLEMENT_ID | VARCHAR(20)  | Primary key              |
+| USER_ID        | VARCHAR(20)  | FK to USERS              |
+| SYSTEM_NAME    | VARCHAR(50)  | e.g. TRADING, PAYMENTS   |
+| ACCESS_LEVEL   | VARCHAR(20)  | READ / WRITE / ADMIN     |
+| VALID_FROM     | DATE         |                          |
+| VALID_TO       | DATE         |                          |
+| IS_ACTIVE      | CHAR(1)      | Y / N                    |
