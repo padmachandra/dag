@@ -1,0 +1,23 @@
+> Read @./REQUIREMENT.md and @./SCHEMA.md
+> 
+> Create a Spring Boot 2.7 Java 8 Maven project with this structure:
+> - REST controllers for /api/users and /api/users/{id}/entitlements
+> - Service layer that reads from JSON files (not a real DB)
+> - Place sample JSON data under src/main/resources/data/
+> - Generate realistic sample data for 10 users with 2-4 entitlements each
+>   based on the schema in SCHEMA.md
+> - Enable CORS so Angular can call the API locally
+> - Add a health check at /api/health
+
+
+
+> Now create an Angular project for the frontend
+> It should:
+>   - Call GET /api/users and display results in a clean data table
+>   - Each row should have a button to view that user's entitlements
+>   - Clicking it calls /api/users/{id}/entitlements and shows them
+>     in an expandable panel or modal
+>   - Use a professional look suitable for a bank demo
+>   - Show user STATUS as a green/red badge (ACTIVE/INACTIVE)
+>   - Show IS_ACTIVE for entitlements similarly
+>   - No external UI library needed — plain Angular with clean CSS
