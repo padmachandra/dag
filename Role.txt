@@ -1,0 +1,2 @@
+The candidate has experience in Docker, Kubernetes, and application deployment related activities. She demonstrated fair knowledge in containerization concepts and deployment workflows.
+However, the current role requires strong hands-on exposure in Google Cloud Platform infrastructure services, administration, and automation activities. During the interview, the candidate was not able to provide sufficient experience in GCP platform-related tasks such as cloud resource provisioning, IAM/permissions, managed service administration, or GCP infrastructure support.
